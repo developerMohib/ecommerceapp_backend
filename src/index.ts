@@ -15,6 +15,14 @@ app.post("/webhook/clerk", rawJson, (req, res) => {
 app.use(express.json());
 app.use(cors());
 app.use(clerkMiddleware());
+
+
+app.use('/health',(req, res)=>{
+  res.status(200).json({
+    sucess : true, message : "Shopora App is running"
+  })
+})
+
 const publicDir = path.join(process.cwd(), "public");
 if (fs.existsSync(publicDir)) {
   app.use(express.static(publicDir));

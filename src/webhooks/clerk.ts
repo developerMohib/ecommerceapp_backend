@@ -1,16 +1,15 @@
 import { Request, Response } from "express";
-import { verifyWebhook } from "@clerk/express/webhooks";
 import { getEnv } from "../lib/environment";
 import { parseRole } from "../lib/roles";
 import { db } from "../db";
 import { users } from "../db/schema";
 import { eq } from "drizzle-orm";
-
+import { verifyWebhook } from "@clerk/backend/webhooks";
 
 export const clerkWebhookHandler = async (req: Request, res: Response) => {
   const envload = getEnv();
   try {
-    if (!envload.CLERK_WEBHOOK_SECRET) {
+    if (!envload.CLERK_WEBHOOK_SIGNING_SECRET) {
       res.status(503).json({
         success: false,
         message: "Webhooks secret is not provided",
@@ -18,8 +17,16 @@ export const clerkWebhookHandler = async (req: Request, res: Response) => {
       return;
     }
 
-    const evt = await verifyWebhook(req, {
-      signingSecret: envload.CLERK_WEBHOOK_SECRET,
+    const payload =
+      req.body instanceof Buffer ? req.body.toString("utf8") : String(req.body);
+    const request = new Request("http://internal/webhook/clerk", {
+      method: "POST",
+      headers: new Headers(req.headers as HeadersInit),
+      body: payload,
+    });
+
+    const evt = await verifyWebhook(request, {
+      signingSecret: envload.CLERK_WEBHOOK_SIGNING_SECRET,
     });
 
     if (evt.type === "user.created" || evt.type === "user.updated") {
@@ -64,6 +71,6 @@ export const clerkWebhookHandler = async (req: Request, res: Response) => {
 
     res.status(200).json({ success: true });
   } catch (error) {
-        res.status(400).json({ success: false, message: "Invalid webhook" });
+    res.status(400).json({ success: false, message: "Invalid webhook" });
   }
 };

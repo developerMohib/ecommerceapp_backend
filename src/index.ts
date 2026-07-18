@@ -11,13 +11,10 @@ const envload = getEnv();
 
 // 1. Webhook route FIRST — must use raw body for signature verification.
 //    This must come before express.json() and clerkMiddleware().
-app.post(
-  "/webhook/clerk",
-  express.raw({ type: "application/json", limit: "1mb" }),
-  (req, res) => {
-    void clerkWebhookHandler(req, res);
-  }
-);
+const rawjson = express.raw({ type: "application/json", limit: "1mb" });
+app.post("/webhook/clerk", rawjson, (req, res) => {
+  void clerkWebhookHandler(req, res);
+});
 
 // 2. Global middleware — applies to everything registered AFTER this point.
 app.use(cors());
@@ -59,12 +56,12 @@ app.use(
     req: express.Request,
     res: express.Response,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    next: express.NextFunction
+    next: express.NextFunction,
   ) => {
     res.status(500).json({ success: false, message: "Internal server error" });
-  }
+  },
 );
 
 app.listen(envload.PORT, () =>
-  console.log(`Listening on port ${envload.PORT}`)
+  console.log(`Listening on port ${envload.PORT}`),
 );

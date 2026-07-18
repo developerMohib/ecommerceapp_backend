@@ -8,20 +8,25 @@ const envSchema = z.object({
     .default("development"),
   PORT: z.coerce.number().default(8000), // conerce.number() means it will conver the sting to a number it it's a string
   DATABASE_URL: z.string().min(1),
+
   CLERK_PUBLISHABLE_KEY: z.string().min(1),
   CLERK_SECRET_KEY: z.string().min(1),
-  CLERK_WEBHOOK_SECRET: z.string().min(1),
+  CLERK_WEBHOOK_SIGNING_SECRET: z.string().min(1),
+
   FRONTEND_URL: z.string().url(),
+
   POLAR_ACCESS_TOKEN: z.string().optional(),
   POLAR_WEBHOOK_SECRET: z.string().optional(),
   POLAR_API_BASE: z.string().url().default("https://api.polar.sh"),
   POLAR_CHECKOUT_PRODUCT_ID: z.string(),
+
   STREAM_API_KEY: z.string().min(1),
   STREAM_API_SECRET: z.string().min(1),
 
   IMAGEKIT_PUBLIC_KEY: z.string().min(1),
   IMAGEKIT_PRIVATE_KEY: z.string().min(1),
   IMAGEKIT_URL_ENDPOINT: z.string().url(),
+  
   SENTRY_DSN: z.string().url().optional(),
 });
 

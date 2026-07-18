@@ -4,8 +4,11 @@ import { clerkMiddleware } from "@clerk/express";
 import path from "node:path";
 import fs from "node:fs";
 import { clerkWebhookHandler } from "./webhooks/clerk";
-import { getEnv, loadEnv } from "./lib/environment";
+import { getEnv } from "./lib/environment";
 import { keepAliveCronJob } from "./lib/cron";
+import { meRouter } from "./routes/meRouter";
+import { productRouter } from "./routes/productRouter";
+import { streamRouter } from "./routes/streamRouter";
 
 const app = express();
 const envload = getEnv();
@@ -32,6 +35,11 @@ app.get("/check", (_req, res) => {
     message: "Shopora App is running",
   });
 });
+
+// my api
+app.use("/api/me", meRouter);
+app.use("/api/product", productRouter);
+app.use("/api/stream", streamRouter);
 
 // 4. Static frontend + SPA fallback
 const publicDir = path.join(process.cwd(), "public");
@@ -66,10 +74,9 @@ app.use(
   },
 );
 
-app.listen(envload.PORT, () =>{
+app.listen(envload.PORT, () => {
   console.log(`Listening on port ${envload.PORT}`);
-if(envload.NODE_ENV === "production"){
-  keepAliveCronJob.start()
-}
-}
-);
+  if (envload.NODE_ENV === "production") {
+    keepAliveCronJob.start();
+  }
+});

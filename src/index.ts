@@ -4,7 +4,8 @@ import { clerkMiddleware } from "@clerk/express";
 import path from "node:path";
 import fs from "node:fs";
 import { clerkWebhookHandler } from "./webhooks/clerk";
-import { getEnv } from "./lib/environment";
+import { getEnv, loadEnv } from "./lib/environment";
+import { keepAliveCronJob } from "./lib/cron";
 
 const app = express();
 const envload = getEnv();
@@ -21,8 +22,11 @@ app.use(cors());
 app.use(express.json());
 app.use(clerkMiddleware());
 
-// 3. Health check
-app.get("/health", (req, res) => {
+// 3. Health check and run server with cron job
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+app.get("/check", (_req, res) => {
   res.status(200).json({
     success: true,
     message: "Shopora App is running",
@@ -62,6 +66,10 @@ app.use(
   },
 );
 
-app.listen(envload.PORT, () =>
-  console.log(`Listening on port ${envload.PORT}`),
+app.listen(envload.PORT, () =>{
+  console.log(`Listening on port ${envload.PORT}`);
+if(envload.NODE_ENV === "production"){
+  keepAliveCronJob.start()
+}
+}
 );

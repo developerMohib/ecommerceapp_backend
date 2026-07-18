@@ -10,7 +10,7 @@
     "build": "tsc",
     "nodemon": "nodemon --watch 'src/**/*.ts' --exec 'tsx' src/index.ts",
     "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate", 
+    "migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push"
   },
   "keywords": [],
@@ -23,6 +23,7 @@
     "@sentry/node": "^10.66.0",
     "@sentry/profiling-node": "^10.66.0",
     "cors": "^2.8.6",
+    "cron": "^4.4.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",

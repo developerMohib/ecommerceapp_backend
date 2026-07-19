@@ -1,4 +1,5 @@
-import express from "express";
+import express, { NextFunction, Request, Response } from "express";
+import * as Sentry from "@sentry/node";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
 import path from "node:path";
@@ -11,6 +12,7 @@ import { productRouter } from "./routes/productRouter";
 import { streamRouter } from "./routes/streamRouter";
 import { checkoutRouter } from "./routes/checkoutRouter";
 import { polarWebhookHandler } from "./webhooks/polar";
+import { sentryClerkUserMiddleware } from "./middleware/sentryClerkUser";
 
 const app = express();
 const envload = getEnv();
@@ -29,6 +31,7 @@ app.post("/webhook/polar", rawjson, (req, res) => {
 app.use(cors());
 app.use(express.json());
 app.use(clerkMiddleware());
+app.use(sentryClerkUserMiddleware)
 
 // 3. Health check and run server with cron job
 app.get("/health", (_req, res) => {
@@ -66,19 +69,13 @@ if (fs.existsSync(publicDir)) {
     });
   });
 }
+Sentry.setupExpressErrorHandler(app);
 
 // 5. Global error handler — catches anything thrown/passed via next(err)
-app.use(
-  (
-    err: Error,
-    req: express.Request,
-    res: express.Response,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    next: express.NextFunction,
-  ) => {
-    res.status(500).json({ success: false, message: "Internal server error" });
-  },
-);
+app.use((_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const sentryId = (res as express.Response & { sentry?: string }).sentry;
+  res.status(500).json({ success: false,error: "Internal Server error", ...(sentryId !== undefined && {sentryId} ) });
+});
 
 app.listen(envload.PORT, () => {
   console.log(`Listening on port ${envload.PORT}`);

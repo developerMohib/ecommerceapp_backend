@@ -55,10 +55,10 @@ export const checkoutsSession = pgTable("checkouts", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  checkoutId: text("checkout_id").notNull().unique(),
+  polarCheckoutId: text("checkout_id").unique(),
   lines: jsonb("lines").$type<CheckoutSessionLine[]>().notNull(),
-  unitAmount: integer("unit_amount").notNull(),
-  quantity: integer("quantity").notNull(),
+  unitAmount: integer("unit_amount"),
+  quantity: integer("quantity"),
   totalAmount: integer("total_amount").notNull(),
   currency: text("currency").notNull().default("USD"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -73,9 +73,9 @@ export const orders = pgTable("orders", {
     .references(() => users.id, { onDelete: "cascade" }),
   status: text("status").$type<OrderStatus>().notNull().default("pending"),
   checkoutId: text("checkout_id").notNull().unique(),
-  orderId: text("order_id").notNull().unique(),
-  unitAmount: integer("unit_amount").notNull(),
-  quantity: integer("quantity").notNull(),
+  orderId: text("order_id").unique(),
+  unitAmount: integer("unit_amount"),
+  quantity: integer("quantity"),
   totalAmount: integer("total_amount").notNull(),
   currency: text("currency").notNull().default("USD"),
   createdAt: timestamp("created_at", { withTimezone: true })

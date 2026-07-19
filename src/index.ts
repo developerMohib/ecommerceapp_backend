@@ -9,6 +9,8 @@ import { keepAliveCronJob } from "./lib/cron";
 import { meRouter } from "./routes/meRouter";
 import { productRouter } from "./routes/productRouter";
 import { streamRouter } from "./routes/streamRouter";
+import { checkoutRouter } from "./routes/checkoutRouter";
+import { polarWebhookHandler } from "./webhooks/polar";
 
 const app = express();
 const envload = getEnv();
@@ -18,6 +20,9 @@ const envload = getEnv();
 const rawjson = express.raw({ type: "application/json", limit: "1mb" });
 app.post("/webhook/clerk", rawjson, (req, res) => {
   void clerkWebhookHandler(req, res);
+});
+app.post("/webhook/polar", rawjson, (req, res) => {
+  void polarWebhookHandler(req, res);
 });
 
 // 2. Global middleware — applies to everything registered AFTER this point.
@@ -40,6 +45,7 @@ app.get("/check", (_req, res) => {
 app.use("/api/me", meRouter);
 app.use("/api/product", productRouter);
 app.use("/api/stream", streamRouter);
+app.use("/api/checkout", checkoutRouter);
 
 // 4. Static frontend + SPA fallback
 const publicDir = path.join(process.cwd(), "public");

@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch --import ./src/instrument.ts src/index.ts",
-    "start": "node --import ./src/instrument.ts ./dist/index.js",
+    "start": "node --import ./dist/instrument.js ./dist/index.js",
     "build": "tsc",
     "nodemon": "nodemon --watch 'src/**/*.ts' --exec 'tsx' src/index.ts",
     "generate": "drizzle-kit generate",

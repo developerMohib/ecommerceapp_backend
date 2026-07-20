@@ -13,7 +13,8 @@ const envSchema = z.object({
   CLERK_SECRET_KEY: z.string().min(1),
   CLERK_WEBHOOK_SIGNING_SECRET: z.string().min(1),
 
-  FRONTEND_URL: z.string().url(),
+  FRONTEND_URL: z.string().url().optional(),
+  BACKEND_URL: z.string().url(),
 
   POLAR_ACCESS_TOKEN: z.string().optional(),
   POLAR_WEBHOOK_SECRET: z.string().optional(),
@@ -26,7 +27,7 @@ const envSchema = z.object({
   IMAGEKIT_PUBLIC_KEY: z.string().min(1),
   IMAGEKIT_PRIVATE_KEY: z.string().min(1),
   IMAGEKIT_URL_ENDPOINT: z.string().url(),
-  
+
   SENTRY_DSN: z.string().url().optional(),
 });
 

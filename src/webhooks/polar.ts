@@ -17,7 +17,7 @@ function checkoutSessionFromMetadata(order: Record<string, unknown>) {
   return typeof sessionId === "string" ? sessionId : undefined;
 }
 
-async function alreadyPaid(polarOrderId?: string, checkoutId?: string) {
+async function orderAlreadyExists(polarOrderId?: string, checkoutId?: string) {
   if (polarOrderId) {
     const [row] = await db
       .select()
@@ -49,14 +49,18 @@ async function fulfillCheckoutSession(
       .where(eq(checkoutsSession.id, sessionId))
       .for("update");
     if (!session) return false;
+    const finalCheckoutId = checkoutId ?? session.polarCheckoutId;
 
+    if (!finalCheckoutId) {
+      throw new Error("Missing Polar checkout ID");
+    }
     const [order] = await tx
       .insert(orders)
       .values({
         userId: session.userId,
         status: "paid",
         totalAmount: session.totalAmount,
-        checkoutId: checkoutId ?? session.polarCheckoutId!,
+        checkoutId: finalCheckoutId,
         createdAt: new Date(),
         currency: "USD",
         ...(polarOrderId ? { orderId: polarOrderId } : {}),
@@ -121,7 +125,7 @@ export const polarWebhookHandler = async (req: Request, res: Response) => {
       const checkoutId =
         typeof data.checkout_id === "string" ? data.checkout_id : undefined;
 
-      if (await alreadyPaid(polarOrderId, checkoutId)) {
+      if (await orderAlreadyExists(polarOrderId, checkoutId)) {
         res.json({ success: true, duplicate: true });
         return;
       }
@@ -137,22 +141,15 @@ export const polarWebhookHandler = async (req: Request, res: Response) => {
         if (fulfilled) {
           return res.json({ success: true });
         }
-        if (await alreadyPaid(polarOrderId, checkoutId)) {
+        if (await orderAlreadyExists(polarOrderId, checkoutId)) {
           res.json({ success: true, duplicate: true });
           return;
         }
-
-        console.error("Polar oder.paid : could not fulfill checkout session", {
-          sessionId,
-          checkoutId,
-        });
         res.status(500).json({ error: "checkout fullfillment faild" });
         return;
       }
     }
     res.status(200).json({ success: true, message: "Polar payment ok" });
-
-    // catch
   } catch (error) {
     console.log("Polar webhook error", error);
     res.status(400).json({ success: false, message: "Invalid webhook" });

@@ -23,7 +23,7 @@ export const listProducts = async (
       .orderBy(desc(products.createdAt));
     res.status(200).json({
       success: true,
-      message: "Products Retrived Successfully",
+      message: "Products Retrieved Successfully",
       data: rows,
     });
   } catch (error) {
@@ -72,7 +72,7 @@ export const getProductsBySlug = async (
     }
      res
         .status(200)
-        .json({ success: true, message: "Product Retrived Successfulle", data: row});
+        .json({ success: true, message: "Product Retrived Successfully", data: row});
   } catch (error) {
     next(error);
   }

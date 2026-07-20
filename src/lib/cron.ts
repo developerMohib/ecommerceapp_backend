@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 dotenv.config();
 // Every 14 minutes send a GET requeset to the health endpoint
 export const keepAliveCronJob = new CronJob("*/14 * * * *", function () {
-  const base = process.env.FRONTEND_URL;
+  const base = process.env.BACKEND_URL;
   if (!base) return;
   const url = new URL("health", base).href;
   const client = url.startsWith("https:") ? https : http;

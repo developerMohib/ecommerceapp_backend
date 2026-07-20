@@ -17,7 +17,6 @@ export const getMe = async (
       return;
     }
     const user = await getLocalUser(userId)
-console.log(' row in controller', user)
     res
       .status(200)
       .json({ success: true, message: "User Retrvie Successfully", data: user });

@@ -7,7 +7,6 @@ import { eq } from "drizzle-orm";
 import { verifyWebhook } from "@clerk/backend/webhooks";
 
 export const clerkWebhookHandler = async (req: Request, res: Response) => {
-  console.log('req body', req.body)
   const envload = getEnv();
   try {
     if (!envload.CLERK_WEBHOOK_SIGNING_SECRET) {
@@ -72,7 +71,7 @@ export const clerkWebhookHandler = async (req: Request, res: Response) => {
 
     res.status(200).json({ success: true });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     res.status(400).json({ success: false, message: "Invalid webhook" });
   }
 };

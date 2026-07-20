@@ -20,6 +20,7 @@
   "dependencies": {
     "@clerk/backend": "^3.11.7",
     "@clerk/express": "^2.1.43",
+    "@imagekit/nodejs": "^7.10.0",
     "@sentry/node": "^10.66.0",
     "@sentry/profiling-node": "^10.66.0",
     "cors": "^2.8.6",

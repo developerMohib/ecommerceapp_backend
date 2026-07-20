@@ -13,6 +13,7 @@ import { streamRouter } from "./routes/streamRouter";
 import { checkoutRouter } from "./routes/checkoutRouter";
 import { polarWebhookHandler } from "./webhooks/polar";
 import { sentryClerkUserMiddleware } from "./middleware/sentryClerkUser";
+import { adminRouter } from "./routes/adminRouter";
 
 const app = express();
 const envload = getEnv();
@@ -49,6 +50,7 @@ app.use("/api/me", meRouter);
 app.use("/api/product", productRouter);
 app.use("/api/stream", streamRouter);
 app.use("/api/checkout", checkoutRouter);
+app.use("/api/admin", adminRouter);
 
 // 4. Static frontend + SPA fallback
 const publicDir = path.join(process.cwd(), "public");

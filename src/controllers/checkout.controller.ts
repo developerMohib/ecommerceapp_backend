@@ -32,7 +32,7 @@ export const createCheckout = async (
 
     const parsed = cartSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(408).json({
+      res.status(400).json({
         success: false,
         message: "Invalid error",
         details: parsed.error.flatten(),
@@ -75,6 +75,14 @@ export const createCheckout = async (
     const lines: CheckoutSessionLine[] = [];
     for (const line of parsed.data.items) {
       const p = byId.get(line.productId)!;
+      // Check stock first
+      if (line.quantity > p.stock) {
+        res.status(400).json({
+          success: false,
+          message: `${p.name} only has ${p.stock} item(s) in stock.`,
+        });
+        return
+      }
       totalAmount += p.price * line.quantity;
       lines.push({
         productId: p.id,
@@ -120,13 +128,11 @@ export const createCheckout = async (
       .update(checkoutsSession)
       .set({ polarCheckoutId: checkout.id })
       .where(eq(checkoutsSession.id, session.id));
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Checkout successfull",
-        checkoutUrl: checkout.url,
-      });
+    res.status(200).json({
+      success: true,
+      message: "Checkout successfull",
+      checkoutUrl: checkout.url,
+    });
     // catch
   } catch (error) {
     next(error);

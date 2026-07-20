@@ -21,8 +21,8 @@ export const createStreamToken = async (
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    const loaclUser = await getLocalUser(userId);
-    if (!loaclUser) {
+    const localUser = await getLocalUser(userId);
+    if (!localUser) {
       res
         .status(503)
         .json({ success: false, message: "Account not synced yet" });
@@ -34,9 +34,9 @@ export const createStreamToken = async (
       [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
       null;
     const name = streamChatDisplayName(
-      loaclUser.role,
-      loaclUser.displayName ?? combined ?? clerkUser.username,
-      loaclUser.email,
+      localUser.role,
+      localUser.displayName ?? combined ?? clerkUser.username,
+      localUser.email,
     );
 
     const image = clerkUser.imageUrl || undefined;

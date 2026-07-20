@@ -210,6 +210,7 @@ export const updateAdminProduct = async (
     next(error);
   }
 };
+
 export const deleteAdminProduct = async (
   req: Request,
   res: Response,

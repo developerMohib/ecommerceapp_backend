@@ -30,7 +30,10 @@ app.post("/webhook/polar", rawjson, (req, res) => {
 });
 
 // 2. Global middleware — applies to everything registered AFTER this point.
-app.use(cors());
+app.use(cors({
+  origin: envload.FRONTEND_URL,
+  credentials: true,
+}));
 app.use(express.json());
 app.use(clerkMiddleware());
 app.use(sentryClerkUserMiddleware)

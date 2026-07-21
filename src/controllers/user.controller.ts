@@ -1,8 +1,5 @@
 import { getAuth } from "@clerk/express";
 import { NextFunction, Request, Response } from "express";
-import { db } from "../db";
-import { users } from "../db/schema";
-import { eq } from "drizzle-orm";
 import { getLocalUser } from "../lib/users";
 
 export const getMe = async (

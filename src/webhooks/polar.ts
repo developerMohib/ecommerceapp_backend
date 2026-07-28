@@ -49,11 +49,12 @@ async function fulfillCheckoutSession(
       .where(eq(checkoutsSession.id, sessionId))
       .for("update");
     if (!session) return false;
-    const finalCheckoutId = checkoutId ?? session.polarCheckoutId;
 
+    const finalCheckoutId = checkoutId ?? session.polarCheckoutId;
     if (!finalCheckoutId) {
       throw new Error("Missing Polar checkout ID");
     }
+
     const [order] = await tx
       .insert(orders)
       .values({
@@ -67,7 +68,7 @@ async function fulfillCheckoutSession(
       })
       .returning();
 
-    if (session.lines.length > 0) {
+    if (session.lines.length) {
       await tx.insert(orderItems).values(
         session.lines.map((line) => ({
           orderId: order.id,
@@ -145,7 +146,7 @@ export const polarWebhookHandler = async (req: Request, res: Response) => {
           res.json({ success: true, duplicate: true });
           return;
         }
-        res.status(500).json({ error: "checkout fullfillment faild" });
+        res.status(500).json({ error: "checkout fullfillment failed" });
         return;
       }
     }

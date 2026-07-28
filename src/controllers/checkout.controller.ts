@@ -18,6 +18,7 @@ const cartSchema = z.object({
     )
     .min(1),
 });
+
 export const createCheckout = async (
   req: Request,
   res: Response,
@@ -32,68 +33,54 @@ export const createCheckout = async (
 
     const parsed = cartSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({
-        success: false,
-        message: "Invalid error",
-        details: parsed.error.flatten(),
-      });
+      res
+        .status(400)
+        .json({ error: "Invalid cart", details: parsed.error.flatten() });
       return;
     }
-    // polar access token required
+
+    // polar access token is required
     if (!envLoad.POLAR_ACCESS_TOKEN) {
-      res.status(503).json({
-        success: false,
-        message: "Payments are not configured",
-      });
+      res.status(503).json({ error: "Payments are not configured" });
       return;
     }
 
     const localUser = await getLocalUser(userId);
     if (!localUser) {
-      res
-        .status(503)
-        .json({ success: false, message: "Account not synced yet" });
+      res.status(503).json({ error: "Account not synced yet" });
       return;
     }
+    const ids = parsed.data.items.map((i) => i.productId);
 
-    const productId = parsed.data.items.map((i) => i.productId);
-    const productRows = await db
+    // load every cart product that exists, is active, and matches the IDs we asked for.
+    const prodRows = await db
       .select()
       .from(products)
-      .where(and(inArray(products.id, productId), eq(products.isActive, true)));
+      .where(and(inArray(products.id, ids), eq(products.isActive, true)));
 
-    if (productRows.length !== productId.length) {
-      res
-        .status(400)
-        .json({ success: false, message: "One or more products are invalid" });
+    if (prodRows.length !== ids.length) {
+      res.status(400).json({ error: "One or more products are invalid" });
       return;
     }
 
-    // calculate amount
-    const byId = new Map(productRows.map((p) => [p.id, p]));
+    const byId = new Map(prodRows.map((p) => [p.id, p]));
     let totalAmount = 0;
     const lines: CheckoutSessionLine[] = [];
+
     for (const line of parsed.data.items) {
       const p = byId.get(line.productId)!;
-      // Check stock first
-      if (line.quantity > p.stock) {
-        res.status(400).json({
-          success: false,
-          message: `${p.name} only has ${p.stock} item(s) in stock.`,
-        });
-        return
-      }
       totalAmount += p.price * line.quantity;
       lines.push({
         productId: p.id,
         quantity: line.quantity,
-        price: p.price,
+        unitPrice: p.price,
       });
     }
-    if (totalAmount <= 0) {
+
+    if (totalAmount < 10) {
       res.status(400).json({
-        success: false,
-        message: "Total amount not be 0 or negative",
+        error:
+          "Total below Polar minimum (e.g. USD requires at least 10 cents)",
       });
       return;
     }
@@ -108,9 +95,10 @@ export const createCheckout = async (
       .returning();
     const successUrl = `${envLoad.FRONTEND_URL}/checkout/return?checkout_id={CHECKOUT_ID}`;
     const returnUrl = `${envLoad.FRONTEND_URL}/cart`;
+
     const checkout = await polarCreateCheckout(envLoad, {
       products: [envLoad.POLAR_CHECKOUT_PRODUCT_ID],
-      price: {
+      prices: {
         [envLoad.POLAR_CHECKOUT_PRODUCT_ID]: [
           {
             amount_type: "fixed",
@@ -119,6 +107,7 @@ export const createCheckout = async (
           },
         ],
       },
+
       success_url: successUrl,
       return_url: returnUrl,
       external_customer_id: userId,
@@ -128,13 +117,11 @@ export const createCheckout = async (
       .update(checkoutsSession)
       .set({ polarCheckoutId: checkout.id })
       .where(eq(checkoutsSession.id, session.id));
-    res.status(200).json({
-      success: true,
-      message: "Checkout successfull",
-      checkoutUrl: checkout.url,
-    });
+
+    res.json({ checkoutUrl: checkout.url });
     // catch
   } catch (error) {
+    console.log(error);
     next(error);
   }
 };

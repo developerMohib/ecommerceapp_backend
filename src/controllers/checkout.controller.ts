@@ -113,13 +113,14 @@ export const createCheckout = async (
       external_customer_id: userId,
       metadata: { checkout_session_id: session.id },
     });
+    console.log("polar checkout created test 116");
+    console.log("polar checkout created", checkout);
     await db
       .update(checkoutsSession)
       .set({ polarCheckoutId: checkout.id })
       .where(eq(checkoutsSession.id, session.id));
 
     res.json({ checkoutUrl: checkout.url });
-    // catch
   } catch (error) {
     console.log(error);
     next(error);

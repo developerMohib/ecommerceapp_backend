@@ -22,7 +22,7 @@ async function orderAlreadyExists(polarOrderId?: string, checkoutId?: string) {
     const [row] = await db
       .select()
       .from(orders)
-      .where(eq(orders.orderId, polarOrderId))
+      .where(eq(orders.polarOrderId, polarOrderId))
       .limit(1);
     if (row?.status === "paid") return true;
   }
@@ -30,7 +30,7 @@ async function orderAlreadyExists(polarOrderId?: string, checkoutId?: string) {
     const [row] = await db
       .select()
       .from(orders)
-      .where(eq(orders.checkoutId, checkoutId))
+      .where(eq(orders.polarCheckoutId, checkoutId))
       .limit(1);
     if (row?.status === "paid") return true;
   }
@@ -60,21 +60,24 @@ async function fulfillCheckoutSession(
       .values({
         userId: session.userId,
         status: "paid",
+        checkoutSessionId: session.id,
         totalAmount: session.totalAmount,
-        checkoutId: finalCheckoutId,
+        polarCheckoutId: finalCheckoutId,
         createdAt: new Date(),
         currency: "USD",
-        ...(polarOrderId ? { orderId: polarOrderId } : {}),
+        ...(polarOrderId ? { polarOrderId: polarOrderId } : {}),
       })
       .returning();
 
+    console.log("order fulfill test 72");
+    console.log("order fulfill", order);
     if (session.lines.length) {
       await tx.insert(orderItems).values(
         session.lines.map((line) => ({
           orderId: order.id,
           productId: line.productId,
           quantity: line.quantity,
-          unitPrice: line.price,
+          unitPrice: line.unitPrice,
         })),
       );
     }
@@ -85,6 +88,9 @@ async function fulfillCheckoutSession(
 }
 
 export const polarWebhookHandler = async (req: Request, res: Response) => {
+  console.log("polar webhook handler test 100");
+  console.log("polar webhook handler", req.body);
+
   const loadenv = getEnv();
   try {
     if (!loadenv.POLAR_WEBHOOK_SECRET) {
@@ -94,10 +100,10 @@ export const polarWebhookHandler = async (req: Request, res: Response) => {
 
     const raw =
       req.body instanceof Buffer ? req.body : Buffer.from(String(req.body));
-    const wh = new Webhook(
-      Buffer.from(loadenv.POLAR_WEBHOOK_SECRET, "utf8").toString("base64"),
-    );
 
+    const wh = new Webhook(loadenv.POLAR_WEBHOOK_SECRET);
+
+    console.log("raw", raw);
     const id = headerString(req.headers, "webhook-id");
     const ts = headerString(req.headers, "webhook-timestamp");
     const sig = headerString(req.headers, "webhook-signature");
@@ -119,7 +125,7 @@ export const polarWebhookHandler = async (req: Request, res: Response) => {
       type: string;
       data?: Record<string, unknown>;
     };
-
+    console.log("event", event);
     if (event.type === "order.paid" && event.data) {
       const data = event.data;
       const polarOrderId = typeof data.id === "string" ? data.id : undefined;
@@ -131,7 +137,8 @@ export const polarWebhookHandler = async (req: Request, res: Response) => {
         return;
       }
       const sessionId = checkoutSessionFromMetadata(data);
-
+      console.log("Metadata:", data.metadata);
+      console.log("Session ID:", sessionId);
       if (sessionId) {
         const fulfilled = await fulfillCheckoutSession(
           sessionId,

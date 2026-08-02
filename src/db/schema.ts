@@ -71,9 +71,13 @@ export const orders = pgTable("orders", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  checkoutSessionId: uuid("checkout_session_id")
+    .notNull()
+    .unique()
+    .references(() => checkoutsSession.id),
   status: text("status").$type<OrderStatus>().notNull().default("pending"),
-  checkoutId: text("checkout_id").notNull().unique(),
-  orderId: text("order_id").unique(),
+  polarCheckoutId: text("polar_checkout_id"),
+  polarOrderId: text("polar_order_id").unique(),
   unitAmount: integer("unit_amount"),
   quantity: integer("quantity"),
   totalAmount: integer("total_amount").notNull(),

@@ -8,7 +8,5 @@ export async function  getLocalUser(clerkUserId:string) {
       .from(users)
       .where(eq(users.clerkUserId, clerkUserId))
       .limit(1);
-
       return row
-    
 }

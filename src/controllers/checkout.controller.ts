@@ -7,7 +7,7 @@ import { db } from "../db";
 import { CheckoutSessionLine, checkoutsSession, products } from "../db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { polarCreateCheckout } from "../lib/polar";
-const envLoad = getEnv();
+
 const cartSchema = z.object({
   items: z
     .array(
@@ -25,6 +25,7 @@ export const createCheckout = async (
   next: NextFunction,
 ) => {
   try {
+    const envLoad = getEnv();
     const { isAuthenticated, userId } = getAuth(req);
     if (!isAuthenticated || !userId) {
       res.status(401).json({ success: false, message: "Unauthorized" });
@@ -113,8 +114,6 @@ export const createCheckout = async (
       external_customer_id: userId,
       metadata: { checkout_session_id: session.id },
     });
-    console.log("polar checkout created test 116");
-    console.log("polar checkout created", checkout);
     await db
       .update(checkoutsSession)
       .set({ polarCheckoutId: checkout.id })

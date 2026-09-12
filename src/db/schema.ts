@@ -10,11 +10,6 @@ import {
 } from "drizzle-orm/pg-core";
 export type OrderStatus = "pending" | "paid" | "failed";
 export type UserRole = "customer" | "admin" | "support";
-export type CheckoutSessionLine = {
-  productId: string;
-  quantity: number;
-  unitPrice: number;
-};
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -49,6 +44,12 @@ export const products = pgTable("products", {
     .notNull()
     .defaultNow(),
 });
+
+export type CheckoutSessionLine = {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+};
 
 export const checkoutsSession = pgTable("checkouts", {
   id: uuid("id").primaryKey().defaultRandom(),

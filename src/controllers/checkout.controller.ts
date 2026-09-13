@@ -33,6 +33,7 @@ export const createCheckout = async (
     }
 
     const parsed = cartSchema.safeParse(req.body);
+    console.log("Parsed cart from checkout controller:", parsed);
     if (!parsed.success) {
       res
         .status(400)
@@ -58,7 +59,7 @@ export const createCheckout = async (
       .select()
       .from(products)
       .where(and(inArray(products.id, ids), eq(products.isActive, true)));
-
+console.log(" prod rows fomr checkout controller", prodRows);
     if (prodRows.length !== ids.length) {
       res.status(400).json({ error: "One or more products are invalid" });
       return;
@@ -114,6 +115,7 @@ export const createCheckout = async (
       external_customer_id: userId,
       metadata: { checkout_session_id: session.id },
     });
+    console.log("checkout from checkout controller:", checkout);
     await db
       .update(checkoutsSession)
       .set({ polarCheckoutId: checkout.id })

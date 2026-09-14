@@ -159,7 +159,13 @@ export const polarWebhookHandler = async (req: Request, res: Response) => {
     }
     res.status(200).json({ success: true, message: "Polar payment ok" });
   } catch (error) {
-    console.log("Polar webhook error", error);
-    res.status(400).json({ success: false, message: "Invalid webhook" });
+    console.error("========== POLAR WEBHOOK ERROR ==========");
+    console.error(error);
+    console.error("==========================================");
+
+    res.status(500).json({
+      success: false,
+      message: "Webhook processing failed",
+    });
   }
 };

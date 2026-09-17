@@ -3,7 +3,7 @@ import { getEnv } from "../lib/environment";
 import { Webhook } from "standardwebhooks";
 import { db } from "../db";
 import { checkoutsSession, orderItems, orders } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 
 function headerString(headers: Request["headers"], name: string) {
   const value = headers[name];
@@ -48,11 +48,36 @@ async function fulfillCheckoutSession(
       .from(checkoutsSession)
       .where(eq(checkoutsSession.id, sessionId))
       .for("update");
-    if (!session) return false;
+
+    if (!session) {
+      // A successfully fulfilled session is retained for order history. A missing
+      // session means the webhook refers to an invalid or already-removed record.
+      return false;
+    }
 
     const finalCheckoutId = checkoutId ?? session.polarCheckoutId;
+
     if (!finalCheckoutId) {
       throw new Error("Missing Polar checkout ID");
+    }
+
+    // The webhook provider can deliver the same event more than once. The row
+    // lock serializes deliveries and this check makes the transaction safe to
+    // retry without relying on a pre-transaction read.
+    const existingOrder = await tx
+      .select({ id: orders.id })
+      .from(orders)
+      .where(
+        or(
+          eq(orders.checkoutSessionId, session.id),
+          eq(orders.polarCheckoutId, finalCheckoutId),
+          ...(polarOrderId ? [eq(orders.polarOrderId, polarOrderId)] : []),
+        ),
+      )
+      .limit(1);
+
+    if (existingOrder.length > 0) {
+      return true;
     }
 
     const [order] = await tx
@@ -65,12 +90,12 @@ async function fulfillCheckoutSession(
         polarCheckoutId: finalCheckoutId,
         createdAt: new Date(),
         currency: "USD",
-        ...(polarOrderId ? { polarOrderId: polarOrderId } : {}),
+        ...(polarOrderId
+          ? { polarOrderId }
+          : {}),
       })
       .returning();
 
-    console.log("order fulfill test 72");
-    console.log("order fulfill", order);
     if (session.lines.length) {
       await tx.insert(orderItems).values(
         session.lines.map((line) => ({
@@ -78,11 +103,13 @@ async function fulfillCheckoutSession(
           productId: line.productId,
           quantity: line.quantity,
           unitPrice: line.unitPrice,
-        })),
+        }))
       );
     }
 
-    await tx.delete(checkoutsSession).where(eq(checkoutsSession.id, sessionId));
+    // Keep the checkout as the immutable payment-attempt record. orders.checkout
+    // references it, so deleting it here would violate the foreign key and roll
+    // back the entire transaction.
     return true;
   });
 }

@@ -13,10 +13,11 @@ const cartSchema = z.object({
     .array(
       z.object({
         productId: z.string().uuid(),
-        quantity: z.number().int().positive(),
+        quantity: z.number().int().positive().max(100),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(50),
 });
 
 export const createCheckout = async (
@@ -53,6 +54,10 @@ export const createCheckout = async (
       return;
     }
     const ids = parsed.data.items.map((i) => i.productId);
+    if (new Set(ids).size !== ids.length) {
+      res.status(400).json({ error: "Duplicate products are not allowed" });
+      return;
+    }
 
     // load every cart product that exists, is active, and matches the IDs we asked for.
     const prodRows = await db

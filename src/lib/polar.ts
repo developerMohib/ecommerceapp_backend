@@ -17,7 +17,10 @@ type CheckoutCreateBody = {
   metadata?: Record<string, string | number | boolean>;
 };
 
-export async function polarCreateCheckout(env: Environment, body: CheckoutCreateBody) {
+export async function polarCreateCheckout(
+  env: Environment,
+  body: CheckoutCreateBody,
+) {
   const token = env.POLAR_ACCESS_TOKEN;
   if (!token) throw new Error("POLAR_ACCESS_TOKEN is not configured");
 
@@ -28,6 +31,7 @@ export async function polarCreateCheckout(env: Environment, body: CheckoutCreate
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!res.ok) {

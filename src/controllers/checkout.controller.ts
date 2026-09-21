@@ -34,7 +34,6 @@ export const createCheckout = async (
     }
 
     const parsed = cartSchema.safeParse(req.body);
-    console.log("Parsed cart from checkout controller:", parsed);
     if (!parsed.success) {
       res
         .status(400)
@@ -54,6 +53,7 @@ export const createCheckout = async (
       return;
     }
     const ids = parsed.data.items.map((i) => i.productId);
+    console.log("ids from checkout controller", parsed.data.items, ids);
     if (new Set(ids).size !== ids.length) {
       res.status(400).json({ error: "Duplicate products are not allowed" });
       return;

@@ -1,63 +1,47 @@
 import { Request, Response } from "express";
-import { eq, or } from "drizzle-orm";
+import { getEnv } from "../lib/environment";
 import { Webhook } from "standardwebhooks";
 import { db } from "../db";
 import { checkoutsSession, orderItems, orders } from "../db/schema";
-import { getEnv } from "../lib/environment";
+import { eq, or } from "drizzle-orm";
 
-// Types
-interface PolarOrderPayload {
-  id?: string;
-  checkout_id?: string;
-  metadata?: Record<string, unknown>;
-}
-
-interface WebhookEvent {
-  type: string;
-  data?: PolarOrderPayload;
-}
-
-// Helper Functions
-function getHeaderString(headers: Request["headers"], name: string): string | undefined {
+function headerString(headers: Request["headers"], name: string) {
   const value = headers[name];
   return Array.isArray(value) ? value[0] : value;
 }
 
-function extractCheckoutSessionId(metadata?: Record<string, unknown>): string | undefined {
+function checkoutSessionFromMetadata(order: Record<string, unknown>) {
+  const metadata = order.metadata;
   if (!metadata || typeof metadata !== "object") return undefined;
-  const sessionId = metadata.checkout_session_id;
+  const sessionId = (metadata as Record<string, unknown>).checkout_session_id;
   return typeof sessionId === "string" ? sessionId : undefined;
 }
 
-async function isOrderAlreadyPaid(polarOrderId?: string, checkoutId?: string): Promise<boolean> {
+async function orderAlreadyExists(polarOrderId?: string, checkoutId?: string) {
   if (polarOrderId) {
     const [row] = await db
-      .select({ status: orders.status })
+      .select()
       .from(orders)
       .where(eq(orders.polarOrderId, polarOrderId))
       .limit(1);
-
     if (row?.status === "paid") return true;
   }
-
   if (checkoutId) {
     const [row] = await db
-      .select({ status: orders.status })
+      .select()
       .from(orders)
       .where(eq(orders.polarCheckoutId, checkoutId))
       .limit(1);
-
     if (row?.status === "paid") return true;
   }
-
   return false;
 }
 
 async function fulfillCheckoutSession(
   sessionId: string | undefined,
   polarOrderId: string | undefined,
-  checkoutId: string | undefined
-): Promise<boolean> {
+  checkoutId: string | undefined,
+) {
   return await db.transaction(async (tx) => {
     const sessionWhere = sessionId
       ? eq(checkoutsSession.id, sessionId)
@@ -67,21 +51,27 @@ async function fulfillCheckoutSession(
 
     if (!sessionWhere) return false;
 
-    // Lock and retrieve the checkout session
     const [session] = await tx
       .select()
       .from(checkoutsSession)
       .where(sessionWhere)
       .for("update");
 
-    if (!session) return false;
+    if (!session) {
+      // A successfully fulfilled session is retained for order history. A missing
+      // session means the webhook refers to an invalid or already-removed record.
+      return false;
+    }
 
     const finalCheckoutId = checkoutId ?? session.polarCheckoutId;
+
     if (!finalCheckoutId) {
       throw new Error("Missing Polar checkout ID");
     }
 
-    // Idempotency check inside transaction
+    // The webhook provider can deliver the same event more than once. The row
+    // lock serializes deliveries and this check makes the transaction safe to
+    // retry without relying on a pre-transaction read.
     const existingOrder = await tx
       .select({ id: orders.id })
       .from(orders)
@@ -89,14 +79,15 @@ async function fulfillCheckoutSession(
         or(
           eq(orders.checkoutSessionId, session.id),
           eq(orders.polarCheckoutId, finalCheckoutId),
-          ...(polarOrderId ? [eq(orders.polarOrderId, polarOrderId)] : [])
-        )
+          ...(polarOrderId ? [eq(orders.polarOrderId, polarOrderId)] : []),
+        ),
       )
       .limit(1);
 
-    if (existingOrder.length > 0) return true;
+    if (existingOrder.length > 0) {
+      return true;
+    }
 
-    // Create order
     const [order] = await tx
       .insert(orders)
       .values({
@@ -111,97 +102,110 @@ async function fulfillCheckoutSession(
       })
       .returning();
 
-    // Create line items
-    if (session.lines?.length) {
+    if (session.lines.length) {
       await tx.insert(orderItems).values(
         session.lines.map((line) => ({
           orderId: order.id,
           productId: line.productId,
           quantity: line.quantity,
           unitPrice: line.unitPrice,
-        }))
+        })),
       );
     }
 
+    // Keep the checkout as the immutable payment-attempt record. orders.checkout
+    // references it, so deleting it here would violate the foreign key and roll
+    // back the entire transaction.
     return true;
   });
 }
 
-// Main Webhook Handler
-export const polarWebhookHandler = async (req: Request, res: Response): Promise<void> => {
-  const env = getEnv();
+export const polarWebhookHandler = async (req: Request, res: Response) => {
+  console.log("polar webhook handler test 100");
+  console.log("polar webhook handler", req.body);
 
-  if (!env.POLAR_WEBHOOK_SECRET) {
-    res.status(503).send("Polar webhook not configured");
-    return;
-  }
-
+  const loadenv = getEnv();
   try {
-    // 1. Extract Headers & Payload
-    const rawBody = req.body instanceof Buffer ? req.body : Buffer.from(String(req.body));
-    const webhookId = getHeaderString(req.headers, "webhook-id");
-    const webhookTimestamp = getHeaderString(req.headers, "webhook-timestamp");
-    const webhookSignature = getHeaderString(req.headers, "webhook-signature");
-
-    if (!webhookId || !webhookTimestamp || !webhookSignature) {
-      res.status(400).json({ success: false, message: "Missing webhook headers" });
+    if (!loadenv.POLAR_WEBHOOK_SECRET) {
+      res.status(503).send("Polar webhook not configured");
       return;
     }
 
-    // 2. Verify Signature
-    const secret = Buffer.from(env.POLAR_WEBHOOK_SECRET, "utf-8").toString("base64");
-    const wh = new Webhook(secret);
+    const raw =
+      req.body instanceof Buffer ? req.body : Buffer.from(String(req.body));
 
+    // const wh = new Webhook(loadenv.POLAR_WEBHOOK_SECRET);
+    const wh = new Webhook(
+      Buffer.from(loadenv.POLAR_WEBHOOK_SECRET, "utf8").toString("base64"),
+    );
+
+    console.log("raw", raw);
+    const id = headerString(req.headers, "webhook-id");
+    const ts = headerString(req.headers, "webhook-timestamp");
+    const sig = headerString(req.headers, "webhook-signature");
+
+    if (!id || !ts || !sig) {
+      res.status(400).json({
+        success: false,
+        message: "Missing webhook headers",
+      });
+      return;
+    }
     try {
-      wh.verify(rawBody, {
-        "webhook-id": webhookId,
-        "webhook-timestamp": webhookTimestamp,
-        "webhook-signature": webhookSignature,
+      wh.verify(raw, {
+        "webhook-id": id,
+        "webhook-timestamp": ts,
+        "webhook-signature": sig,
       });
     } catch {
       res.status(401).json({ success: false, message: "Invalid signature" });
       return;
     }
 
-    // 3. Process Event
-    const event = JSON.parse(rawBody.toString("utf8")) as WebhookEvent;
-
+    const event = JSON.parse(raw.toString("utf8")) as {
+      type: string;
+      data?: Record<string, unknown>;
+    };
+    console.log("event", event);
     if (event.type === "order.paid" && event.data) {
       const data = event.data;
       const polarOrderId = typeof data.id === "string" ? data.id : undefined;
-      const checkoutId = typeof data.checkout_id === "string" ? data.checkout_id : undefined;
+      const checkoutId =
+        typeof data.checkout_id === "string" ? data.checkout_id : undefined;
 
-      // Duplicate check before fulfilling
-      if (await isOrderAlreadyPaid(polarOrderId, checkoutId)) {
+      if (await orderAlreadyExists(polarOrderId, checkoutId)) {
         res.json({ success: true, duplicate: true });
         return;
       }
-
-      const sessionId = extractCheckoutSessionId(data.metadata);
-
+      // Metadata is useful, but the checkout ID is the durable correlation key:
+      // Polar order payloads do not require checkout metadata to be present.
+      const sessionId = checkoutSessionFromMetadata(data);
+      console.log("Metadata:", data.metadata);
+      console.log("Session ID:", sessionId);
       if (sessionId || checkoutId) {
-        const fulfilled = await fulfillCheckoutSession(sessionId, polarOrderId, checkoutId);
+        const fulfilled = await fulfillCheckoutSession(
+          sessionId,
+          polarOrderId,
+          checkoutId,
+        );
 
         if (fulfilled) {
-          res.json({ success: true });
-          return;
+          return res.json({ success: true });
         }
-
-        // Re-check for duplicate if fulfillment returned false
-        if (await isOrderAlreadyPaid(polarOrderId, checkoutId)) {
+        if (await orderAlreadyExists(polarOrderId, checkoutId)) {
           res.json({ success: true, duplicate: true });
           return;
         }
-
-        res.status(500).json({ error: "Checkout fulfillment failed" });
+        res.status(500).json({ error: "checkout fulfillment failed" });
         return;
       }
 
+      // Do not acknowledge a paid event that cannot be correlated. A 2xx would
+      // prevent Polar from retrying and would leave payment without an order.
       res.status(500).json({ error: "Paid order has no checkout correlation" });
       return;
     }
-
-    res.status(200).json({ success: true, message: "Polar event processed" });
+    res.status(200).json({ success: true, message: "Polar payment ok" });
   } catch (error) {
     console.error("========== POLAR WEBHOOK ERROR ==========");
     console.error(error);

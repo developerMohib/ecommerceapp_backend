@@ -53,7 +53,7 @@ export const createCheckout = async (
       return;
     }
     const ids = parsed.data.items.map((i) => i.productId);
-    console.log("ids from checkout controller", parsed.data.items, ids);
+    
     if (new Set(ids).size !== ids.length) {
       res.status(400).json({ error: "Duplicate products are not allowed" });
       return;
@@ -64,8 +64,8 @@ export const createCheckout = async (
       .select()
       .from(products)
       .where(and(inArray(products.id, ids), eq(products.isActive, true)));
-console.log(" prod rows fomr checkout controller", prodRows);
-    if (prodRows.length !== ids.length) {
+    
+      if (prodRows.length !== ids.length) {
       res.status(400).json({ error: "One or more products are invalid" });
       return;
     }
@@ -120,7 +120,6 @@ console.log(" prod rows fomr checkout controller", prodRows);
       external_customer_id: userId,
       metadata: { checkout_session_id: session.id },
     });
-    console.log("checkout from checkout controller:", checkout);
     await db
       .update(checkoutsSession)
       .set({ polarCheckoutId: checkout.id })
